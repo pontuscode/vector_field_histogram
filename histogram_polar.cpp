@@ -36,7 +36,7 @@ void HistogramPolar::update_polar(HistogramGrid* grid, double current_x,
       int certainty_value = pow(grid->getCell(x,y), 2);
       double magnitude = certainty_value*(a-b*d_ij);
       int k = (int)(beta / this->alpha);
-      this->magnitudes[k] = magnitude;
+      this->magnitudes[k] = abs(magnitude);
     }
   }
   for(int x = 0; x < w_s; x++){
@@ -51,7 +51,7 @@ void HistogramPolar::update_polar(HistogramGrid* grid, double current_x,
       double magnitude = certainty_value*(a-b*d_ij);
       int k = (int)(beta / this->alpha);
       k += this->origo;
-      this->magnitudes[k] = magnitude;
+      this->magnitudes[k] = abs(magnitude);
     }
   }
 }

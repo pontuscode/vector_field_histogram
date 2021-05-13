@@ -30,7 +30,7 @@ For obstacle avoidance we need to know three central things:
 We also need to be able to tell the robot to steer away from obstacles.
 It seems fitting to use cmd_vel for this, but it is to be determined.
 */
-
+#define MAX_VEL 0.75
 class ObstacleAvoidance{
 
 public:
@@ -38,7 +38,7 @@ public:
     m_nodeHandle(_nodeHandle), m_grid_cellsize(0.1),
     m_robot_size(1.0), m_histogram_dimensions(33)
   {
-    vfh = new VectorFieldHistogram(100000, m_robot_size, 18, 5);
+    vfh = new VectorFieldHistogram(1000, m_robot_size, 18, 5);
     lidar_sub = m_nodeHandle.subscribe("scan", 1, &ObstacleAvoidance::laser_callback, this);
     position_sub = m_nodeHandle.subscribe("/husky0/odometry", 1, &ObstacleAvoidance::update_position, this);
     goal_sub = m_nodeHandle.subscribe("/husky0/waypoints", 1, &ObstacleAvoidance::setGoal, this);
@@ -46,6 +46,7 @@ public:
     vel_pub = m_nodeHandle.advertise<geometry_msgs::Twist>("/husky0/cmd_vel", 1);
     to_vel_control = m_nodeHandle.advertise<std_msgs::Empty>("/husky0/to_vel_control", 1);
     turn_control = m_nodeHandle.advertise<std_msgs::Float64>("/husky0/obstacle_avoidance_angular", 1);
+    speed_control = m_nodeHandle.advertise<std_msgs::Float64>("/husky0/obstacle_avoidance_linear", 1);
   }
 
   void goalReached(const std_msgs::Empty& e){
@@ -54,7 +55,6 @@ public:
       this->goals.pop_front();
     }
     this->goalCounter--;
-    //ROS_INFO_STREAM("REACHED GOAL");
   }
 
   void setGoal(const nav_msgs::Path::ConstPtr& _path){
@@ -93,19 +93,14 @@ public:
     std_msgs::Float64 msg;
     msg.data = target;
     this->turn_control.publish(msg);
-    /*msg.angular.z = target;
-    msg.linear.x = 0.7;
-    message_number++;
-    if(message_number > 5){
-      this->turning = false;
-      message_number = 0;
+  }
+
+  void change_speed(double best_speed){
+    if(best_speed <= MAX_VEL){
+      std_msgs::Float64 msg;
+      msg.data = best_speed;
+      this->speed_control.publish(msg);
     }
-    if(!turning){
-      this->vel_pub.publish(msg);
-      std_msgs::Empty e;
-      this->to_vel_control.publish(e);
-      this->turning = true;
-    }*/
   }
 
   void laser_callback(const sensor_msgs::LaserScanPtr& _message){
@@ -137,12 +132,14 @@ public:
     double best_direction = this->vfh->calculate_direction(&histogram_polar,
                                                             target_direction,
                                                             this->driving_direction);
-    //ROS_INFO_STREAM(best_direction);
+    double best_speed = this->vfh->calculate_speed(&histogram_polar);
+    //ROS_INFO_STREAM(best_speed);
     // If the best direction has changed from previous iteration
     if(this->goals.size() > 0){
       if(best_direction != 0.0){
         change_direction(best_direction);
       }
+      change_speed(best_speed);
     }
   }
 
@@ -154,7 +151,7 @@ private:
   ros::Subscriber tw_sub;
   ros::Publisher vel_pub;
   ros::Publisher to_vel_control;
-  ros::Publisher turn_control;
+  ros::Publisher turn_control, speed_control;
   ros::NodeHandle m_nodeHandle;
   VectorFieldHistogram* vfh;
   tf::TransformListener m_tfListener{};
@@ -164,8 +161,6 @@ private:
   int m_histogram_dimensions = 0;
   double m_robot_size, m_grid_cellsize;
   int goalCounter = 0;
-  bool turning = false;
-  int message_number = 0;
 };
 
 int main(int argc, char** argv){

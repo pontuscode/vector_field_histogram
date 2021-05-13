@@ -120,8 +120,21 @@ double VectorFieldHistogram::calculate_direction(HistogramPolar* histogram_polar
   } else {
     new_direction = 0.0;
   }
-  ROS_INFO_STREAM("Best sector is " << best_sector << " --> Turn " <<
-                   new_direction << " radians.");
+  /*ROS_INFO_STREAM("Best sector is " << best_sector << " --> Turn " <<
+                   new_direction << " radians.");*/
+  this->best_sector = best_sector;
   return new_direction;
-  //return ((best_sector*histogram_polar->alpha*PI)/180);
+}
+
+double VectorFieldHistogram::calculate_speed(HistogramPolar* histogram_polar){
+  if(this->best_sector >= 0 && this->best_sector < histogram_polar->sectors){
+    // magnitude > 0 indicates there is an obstacle
+    if(histogram_polar->magnitudes[this->best_sector] > 0){
+      double h_c = histogram_polar->magnitudes[this->best_sector];
+      double h_c_prime = std::min(this->h_m, h_c);
+      return (this->v_max * (1 - (h_c_prime / this->h_m)));
+    } else{
+      return this->v_max;
+    }
+  }
 }
